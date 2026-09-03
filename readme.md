@@ -1,3 +1,33 @@
+## 🗂️ What Each File Demonstrates
+
+The scripts are numbered in teaching order — each one adds a single new LangChain concept on top of the previous file, so read them in sequence rather than picking one at random.
+
+**Agent basics (repo root)**
+
+| File | New concept introduced |
+| --- | --- |
+| `agent1.ts` | The minimum agent: `tool()` + `createAgent()` with two mock tools (`get_weather`, `get_time`) and a bare model-name string. |
+| `agent2.ts` | `systemPrompt` to control tool-call ordering, and `config.context` — per-invocation data (`user_id`) that tools read but the model never sees. |
+| `agent3.ts` | `initChatModel()` for a configured model instance (temperature/timeout/max_tokens) and `responseFormat` to force a Zod-shaped `structuredResponse`. |
+| `agent4.ts` | Multi-turn memory via a `MemorySaver` checkpointer keyed by `config.configurable.thread_id`; also shows two threads staying isolated. |
+| `agent5.ts` | Custom middleware with `createMiddleware()` — swaps a cheap model for a stronger one once the conversation grows past a message threshold. |
+| `agent6.ts` | Prebuilt middleware stack: `modelFallbackMiddleware`, `summarizationMiddleware`, `llmToolSelectorMiddleware`. |
+| `agent7.ts` | `piiRedactionMiddleware` with custom regex rules for credit card, SSN, and phone numbers. |
+
+**RAG (`rag/`)**
+
+| File | New concept introduced |
+| --- | --- |
+| `ragagent1.ts` | The raw retrieval pipeline only: `PDFLoader` → `RecursiveCharacterTextSplitter` → `OpenAIEmbeddings` → `MemoryVectorStore.similaritySearch()`. No agent yet. |
+| `ragagent2.ts` | Wires retrieval into an agent using `dynamicSystemPromptMiddleware` — top-2 chunks are injected into the system prompt on every turn. |
+| `ragagent3.ts` | Same pattern over **multiple** PDFs loaded into one shared vector store. |
+| `ragagent4.ts` | Swaps `PDFLoader` for `DocxLoader` (backed by the `mammoth` dependency) to ingest a `.docx` instead. |
+| `ragagent5.ts` | Agentic RAG: retrieval is exposed as a `retrieve` **tool**, so the model decides *whether* and *what* to search instead of always being fed context. |
+| `ragagent6.ts` | Combines the `retrieve` tool with external MCP server tools via `MultiServerMCPClient`. |
+| `ragagentServer.ts` | The `ragagent5.ts` agent exported as a `graph` for the LangGraph CLI (registered as `rag_agent` in `langgraph.json`). |
+
+> ⚠️ `ragagent6.ts` also points `MultiServerMCPClient` at a hardcoded local MCP server path (`/Users/rahulshetty/Documents/playground/mcp-ecommerce-crud/dist/mcp/server.js`). Change it to your own server build, or that agent will fail to start.
+
 ## 🚀 Setup & Running the Examples
 
 ### Prerequisites
@@ -6,6 +36,12 @@ Each script picks up API credentials from environment variables via `dotenv/conf
 
 - `ANTHROPIC_API_KEY` — required by every `agent*.ts` file and `rag/ragagentServer.ts`, since they all call `initChatModel("claude-sonnet-4-5-20250929", ...)`.
 - `OPENAI_API_KEY` — required by `agent5.ts` (uses `ChatOpenAI({ model: "gpt-4o-mini" })` as the cheap fallback model) and by every `rag/ragagent*.ts` file (uses `OpenAIEmbeddings({ model: "text-embedding-3-large" })` to embed document chunks).
+
+> ⚠️ **Missing dependency:** every file in `rag/` imports `MemoryVectorStore` from `@langchain/classic`, but that package is **not** listed in `package.json`. Install it before running any RAG script:
+>
+> ```bash
+> npm i @langchain/classic
+> ```
 
 ### Running an agent script
 
