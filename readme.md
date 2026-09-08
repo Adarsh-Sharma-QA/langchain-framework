@@ -146,3 +146,33 @@ Store and retrieve documents based on semantic similarity
 npm i @langchain/classic
 ```
 ​
+
+## 🐛 Known bug: `emailTool` silently returns `undefined` (agent6.ts, agent7.ts)
+
+In both `agent6.ts` and `agent7.ts`, `emailTool`'s handler is missing a `return`:
+
+```ts
+const emailTool = tool(({recipient,subject}) => {
+    `Email sent to ${recipient} with subject ${subject}`   // <-- template literal is never returned
+}, { ... })
+```
+
+Because the arrow function body is wrapped in `{ }` without an explicit `return`, the template
+literal is evaluated and discarded, and the tool call resolves to `undefined` instead of a
+confirmation string. Run `agent6.ts` as-is (it prompts the model to email
+`rahulshetty@gmail.com`) and the tool message in the printed `response` will show `undefined`
+as the result of the `send_email` call, even though the tool "ran" successfully — there's no
+error, just silently wrong output. `agent1.ts`–`agent5.ts` don't define `emailTool` and aren't
+affected.
+
+**Fix:** add `return` before the template literal, e.g.:
+
+```ts
+const emailTool = tool(({recipient,subject}) => {
+    return `Email sent to ${recipient} with subject ${subject}`
+}, { ... })
+```
+
+This is a good one to know about before copying `emailTool` into your own agent — the same
+missing-`return` pattern will silently swallow any tool's output if the arrow function uses a
+`{ }` block body.
