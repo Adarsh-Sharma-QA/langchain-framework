@@ -62,6 +62,14 @@ npx @langchain/langgraph-cli dev
 
 ⚠️ **Gotcha:** `rag/ragagentServer.ts` currently hardcodes local absolute file paths for the PDFs it ingests (`/users/rahulshetty/downloads/ProjectDocs/...`). Update the `pdfPaths` array at the top of that file to point at PDFs that exist on your own machine before running it — otherwise `PDFLoader` will fail on the first path it can't find.
 
+This isn't limited to `ragagentServer.ts` — **every** file in `rag/` has the same hardcoded, machine-specific paths and will throw the identical "file not found" error until you edit them:
+- `ragagent1.ts` (line 10) and `ragagent2.ts` (line 11) — single `PDFLoader(...)` path
+- `ragagent3.ts` (lines 9-11) and `ragagent6.ts` (lines 26-28) — `pdfPaths` array of three Nike PDFs
+- `ragagent4.ts` (line 12) — single `DocxLoader(...)` path
+- `ragagent6.ts` (line 20) also hardcodes a local `MultiServerMCPClient` server path (`/Users/rahulshetty/Documents/playground/mcp-ecommerce-crud/dist/mcp/server.js`), separate from its PDF paths noted above
+
+None of these three source PDFs (`nke-10k-2023.pdf`, `Nike-Inc-2025_10K.pdf`, `nike-growth-story.pdf`) or the `nike-growth-story.docx` are checked into this repo, so you'll need to supply your own copies (or any other PDF/DOCX you want to test retrieval against) and update every path above before running the corresponding script.
+
 // Original request object might look like:
 request = {
   messages: [...],
@@ -147,9 +155,9 @@ npm i @langchain/classic
 ```
 ​
 
-## 🐛 Known bug: `emailTool` silently returns `undefined` (agent6.ts, agent7.ts)
+## 🐛 Known bug: `emailTool` silently returns `undefined` (agent6.ts, agent7.ts, rag/ragagent5.ts)
 
-In both `agent6.ts` and `agent7.ts`, `emailTool`'s handler is missing a `return`:
+In `agent6.ts`, `agent7.ts`, **and `rag/ragagent5.ts`**, `emailTool`'s handler is missing a `return`:
 
 ```ts
 const emailTool = tool(({recipient,subject}) => {
@@ -176,3 +184,10 @@ const emailTool = tool(({recipient,subject}) => {
 This is a good one to know about before copying `emailTool` into your own agent — the same
 missing-`return` pattern will silently swallow any tool's output if the arrow function uses a
 `{ }` block body.
+
+`rag/ragagent5.ts` (lines 63-68) has the exact same copy-pasted `emailTool` with the same missing
+`return`, so asking that agent to "email" something (it's wired up alongside the PDF `retrieve`
+tool and `getWeather`) will also silently resolve to `undefined` instead of a confirmation
+string. The earlier note that "`agent1.ts`–`agent5.ts` don't define `emailTool` and aren't
+affected" is only about the numbered files in the repo root — it doesn't cover this file in
+`rag/`, which shares the `ragagent5` name but is a different, affected file.
