@@ -191,3 +191,41 @@ tool and `getWeather`) will also silently resolve to `undefined` instead of a co
 string. The earlier note that "`agent1.ts`–`agent5.ts` don't define `emailTool` and aren't
 affected" is only about the numbered files in the repo root — it doesn't cover this file in
 `rag/`, which shares the `ragagent5` name but is a different, affected file.
+
+## 🧅 Middleware order in the array controls wrap nesting, not just a list (agent5.ts–agent7.ts)
+
+`createAgent({ middleware: [...] })` doesn't run each middleware's `wrapModelCall` independently —
+it composes them into nested wrappers around the actual model call, and the **array position
+decides the nesting**. Confirmed directly from the installed package
+(`node_modules/langchain/dist/agents/nodes/AgentNode.js`), which builds the handler chain with:
+
+```js
+// Build composed handler from last to first so first middleware becomes outermost
+for (let i = wrapperMiddleware.length - 1; i >= 0; i--) { /* wrap innerHandler */ }
+```
+
+So the **first** middleware in the array is the **outermost** wrapper — its request changes are
+applied first, and it's the last to see the response. The **last** middleware in the array is the
+**innermost** — its request changes are applied last, immediately before the real model call, and
+it's the first to see the raw response coming back.
+
+This matters concretely in `agent6.ts`. The middleware array is:
+
+```ts
+middleware: [
+    modelFallbackMiddleware("gpt-4o-mini", "gpt-3.5-turbo"), // outermost
+    summarizationMiddleware({ model: "gpt-4o", maxTokensBeforeSummary: 8000, messagesToKeep: 20 }), // middle
+    llmToolSelectorMiddleware({ model: "gpt-4o-mini", maxTools: 2 }), // innermost
+]
+```
+
+The inline comment above this array says tool selection "should run FIRST to select tools using
+gpt-4o-mini" — but `llmToolSelectorMiddleware` is placed **last**, i.e. innermost, not first. In
+practice this means `summarizationMiddleware`'s token count (the thing that decides whether
+`maxTokensBeforeSummary: 8000` has been crossed) is computed against the **full**, untrimmed tool
+list, since the tool-selector's trim is the last change applied, right before the model call —
+`summarizationMiddleware` never sees the reduced set. `agent7.ts` only wires up one middleware
+(`piiRedactionMiddleware`) so this ordering effect doesn't apply there, but the same rule holds for
+any future middleware stack added to that file: put a middleware earlier in the array to make its
+request changes visible to the middleware that come after it in the list (i.e. the ones nested
+inside it).
